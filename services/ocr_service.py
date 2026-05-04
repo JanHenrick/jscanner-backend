@@ -2,9 +2,13 @@ import pytesseract
 from PIL import Image
 import io
 import os
+import shutil
 
-# Fix for Railway (Linux) - don't set Windows path
-if os.name == 'nt':  # Windows only
+# Auto-detect tesseract location
+tesseract_path = shutil.which('tesseract')
+if tesseract_path:
+    pytesseract.pytesseract.tesseract_cmd = tesseract_path
+elif os.name == 'nt':
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 def extract_text_from_image(image_bytes: bytes) -> str:

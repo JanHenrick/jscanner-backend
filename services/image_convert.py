@@ -18,6 +18,26 @@ def image_to_pdf(image_bytes: bytes, filename: str) -> str:
     image.save(temp_path, "JPEG")
 
     page_width, page_height = letter
+    # Use very safe margins
+    max_width = page_width * 0.7
+    max_height = page_height * 0.7
+
+    ratio = min(max_width / image.width, max_height / image.height)
+    new_width = image.width * ratio
+    new_height = image.height * ratio
+
+    doc = SimpleDocTemplate(output_path, pagesize=letter)
+    rl_image = RLImage(temp_path, width=new_width, height=new_height)
+    doc.build([rl_image])
+    return output_path
+    output_path = f"outputs/{filename}.pdf"
+    image = Image.open(io.BytesIO(image_bytes))
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    temp_path = f"outputs/{filename}_temp.jpg"
+    image.save(temp_path, "JPEG")
+
+    page_width, page_height = letter
     margin = 50
     max_width = page_width - (margin * 2)
     max_height = page_height - (margin * 2)

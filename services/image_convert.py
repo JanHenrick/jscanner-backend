@@ -1,6 +1,6 @@
 from PIL import Image
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Image as RLImage
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas as pdf_canvas
 from docx import Document
 from docx.shared import Inches
 import openpyxl
@@ -14,42 +14,26 @@ def image_to_pdf(image_bytes: bytes, filename: str) -> str:
     image = Image.open(io.BytesIO(image_bytes))
     if image.mode != 'RGB':
         image = image.convert('RGB')
+    
+    # Resize image to fit A4
+    a4_width, a4_height = A4  # 595 x 842 points
+    max_w = a4_width - 40
+    max_h = a4_height - 40
+    
+    ratio = min(max_w / image.width, max_h / image.height)
+    new_w = int(image.width * ratio)
+    new_h = int(image.height * ratio)
+    image = image.resize((new_w, new_h), Image.LANCZOS)
+    
     temp_path = f"outputs/{filename}_temp.jpg"
     image.save(temp_path, "JPEG")
-
-    page_width, page_height = letter
-    # Use very safe margins
-    max_width = page_width * 0.7
-    max_height = page_height * 0.7
-
-    ratio = min(max_width / image.width, max_height / image.height)
-    new_width = image.width * ratio
-    new_height = image.height * ratio
-
-    doc = SimpleDocTemplate(output_path, pagesize=letter)
-    rl_image = RLImage(temp_path, width=new_width, height=new_height)
-    doc.build([rl_image])
-    return output_path
-    output_path = f"outputs/{filename}.pdf"
-    image = Image.open(io.BytesIO(image_bytes))
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
-    temp_path = f"outputs/{filename}_temp.jpg"
-    image.save(temp_path, "JPEG")
-
-    page_width, page_height = letter
-    margin = 50
-    max_width = page_width - (margin * 2)
-    max_height = page_height - (margin * 2)
-    ratio = min(max_width / image.width, max_height / image.height)
-    new_width = image.width * ratio
-    new_height = image.height * ratio
-
-    doc = SimpleDocTemplate(output_path, pagesize=letter,
-        leftMargin=margin, rightMargin=margin,
-        topMargin=margin, bottomMargin=margin)
-    rl_image = RLImage(temp_path, width=new_width, height=new_height)
-    doc.build([rl_image])
+    
+    # Draw directly on canvas
+    c = pdf_canvas.Canvas(output_path, pagesize=A4)
+    x = (a4_width - new_w) / 2
+    y = (a4_height - new_h) / 2
+    c.drawImage(temp_path, x, y, width=new_w, height=new_h)
+    c.save()
     return output_path
 
 def image_to_word(image_bytes: bytes, filename: str) -> str:
@@ -57,21 +41,23 @@ def image_to_word(image_bytes: bytes, filename: str) -> str:
     image = Image.open(io.BytesIO(image_bytes))
     if image.mode != 'RGB':
         image = image.convert('RGB')
+    
+    max_px = 1000
+    if image.width > max_px:
+        ratio = max_px / image.width
+        image = image.resize((int(image.width * ratio), int(image.height * ratio)), Image.LANCZOS)
+    
     temp_path = f"outputs/{filename}_temp.jpg"
     image.save(temp_path, "JPEG")
-
+    
     doc = Document()
     doc.add_heading('PHDCIScanner - Converted Image', 0)
-
-    # Max width 6 inches, auto scale height
     max_width = 6.0
     aspect = image.height / image.width
     new_height = max_width * aspect
-    # Max height 8 inches
     if new_height > 8.0:
         new_height = 8.0
         max_width = new_height / aspect
-
     doc.add_picture(temp_path, width=Inches(max_width))
     doc.save(output_path)
     return output_path
@@ -81,17 +67,15 @@ def image_to_excel(image_bytes: bytes, filename: str) -> str:
     image = Image.open(io.BytesIO(image_bytes))
     if image.mode != 'RGB':
         image = image.convert('RGB')
-
-    # Resize image for Excel (max 800px wide)
+    
     max_px = 800
     if image.width > max_px:
         ratio = max_px / image.width
-        new_size = (int(image.width * ratio), int(image.height * ratio))
-        image = image.resize(new_size, Image.LANCZOS)
-
+        image = image.resize((int(image.width * ratio), int(image.height * ratio)), Image.LANCZOS)
+    
     temp_path = f"outputs/{filename}_temp.jpg"
     image.save(temp_path, "JPEG")
-
+    
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Image"
